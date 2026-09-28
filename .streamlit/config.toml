@@ -1,0 +1,8 @@
+# Local-only review server: no telemetry, bound to localhost.
+[browser]
+gatherUsageStats = false
+
+[server]
+address = "127.0.0.1"
+headless = true
+
