@@ -1,0 +1,357 @@
+# =============================================================================
+# maintdoc configuration
+# -----------------------------------------------------------------------------
+# All processing is local and rule-based. Relative paths are resolved relative
+# to the directory containing this file. Lists replace built-in defaults;
+# mappings are merged with them (see maintdoc/config.py for every default).
+# =============================================================================
+
+project:
+  name: "Hydraulic Press Maintenance Documentation"
+  organisation: "Example Engineering Ltd."
+  manual_title: "Master Maintenance Manual"
+
+paths:
+  # Locally synchronised OneDrive folder that contains the source PDFs, e.g.
+  #   "C:/Users/<you>/OneDrive - <Company>/Maintenance/Manuals"
+  # Environment variables are expanded, e.g. "%OneDriveCommercial%/Maintenance".
+  source_root: "./sources"
+  # Keep work/output/log folders OUTSIDE the OneDrive folder: SQLite databases
+  # must not be synchronised while they are open.
+  work_dir: "./work"
+  output_dir: "./output"
+  log_dir: "./logs"
+  database: "./work/maintenance.db"
+
+inventory:
+  include_extensions: [".pdf"]
+  exclude_dir_patterns: [".*", "~$*", "$RECYCLE.BIN", "__pycache__"]
+  exclude_file_patterns: ["~$*", ".~lock*", "*.tmp"]
+  follow_symlinks: false
+  # Skip re-hashing when size and modification time are unchanged
+  # (use `inventory --rehash` or `verify` to force full hash verification).
+  trust_size_and_mtime: true
+  min_file_size_bytes: 64
+  page_load_check: true
+
+onedrive:
+  # Online-only placeholders are detected from file attributes and NEVER opened
+  # (opening would trigger a download, i.e. network access).
+  detect_placeholders: true
+  treat_zero_allocated_blocks_as_placeholder: true
+  never_hydrate: true
+
+metadata:
+  scan_pages: 2
+  # First capture group = value. (?i:...) makes only the keyword case-insensitive.
+  revision_patterns:
+    - '(?i:\brev(?:ision)?)[\s._:\-]*([A-Z]{1,2}[0-9]{0,2}|[0-9]{1,3}(?:\.[0-9]{1,2})?)\b'
+    - '(?i:\b(?:issue|ausgabe|version))[\s._:\-]*([0-9]{1,3}(?:\.[0-9]{1,2})?)\b'
+  date_patterns:
+    - '\b(\d{4}-\d{2}-\d{2})\b'
+    - '\b(\d{1,2}\.\d{1,2}\.\d{4})\b'
+    - '\b(\d{1,2}/\d{1,2}/\d{4})\b'
+    - '\b(\d{1,2}\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4})\b'
+    - '\b((?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4})\b'
+  doc_number_patterns:
+    - '(?i:\b(?:doc(?:ument)?\.?\s*(?:no\.?|number|#)|manual\s*no\.?))\s*[:#]?\s*([A-Z0-9][A-Z0-9\-_/.]{2,}[A-Z0-9])'
+    - '\b(SB-\d{2,4})\b'
+  title_max_chars: 160
+  # Missing values of these fields are written to the error register
+  required_fields: ["equipment", "model", "revision", "doc_date"]
+
+extraction:
+  # Controlled parallelism: number of worker processes (documents in parallel).
+  # Each worker streams its document page by page.
+  workers: 2
+  reextract_on_config_change: true
+  header_footer_margin_ratio: 0.07
+  header_footer_min_repeat_ratio: 0.3
+  header_footer_min_pages: 3
+  heading_size_ratio: 1.15
+  heading_max_chars: 120
+  multi_column_detection: true
+  signal_words:
+    danger: ["DANGER", "GEFAHR"]
+    warning: ["WARNING", "WARNUNG"]
+    caution: ["CAUTION", "VORSICHT"]
+    notice: ["NOTICE", "IMPORTANT", "ACHTUNG"]
+    note: ["NOTE", "HINWEIS"]
+  caption_pattern: '^(?:fig(?:ure)?\.?|abb(?:ildung)?\.?|diagram|illustration|drawing|table|tab\.)\s*[A-Z]?\d+[\w.\-]*'
+  blank_page_pattern: '(?i)this\s+page\s+(?:is\s+)?intentionally\s+(?:left\s+)?blank'
+  gibberish_threshold: 0.45
+  gibberish_min_chars: 20
+  store_page_text: true
+
+tables:
+  mode: auto            # auto = only on pages with ruling lines; always | never
+  auto_min_line_segments: 4
+  max_drawings_for_detection: 4000
+  min_rows: 2
+  min_cols: 2
+  min_filled_ratio: 0.3
+  fallback_pymupdf: true
+  complex_table_min_cols: 7
+
+figures:
+  enabled: true
+  render: true
+  render_dpi: 150
+  min_area_ratio: 0.02
+  min_drawing_paths: 12
+  caption_max_distance_pt: 60
+
+ocr:
+  enabled: true
+  mode: auto            # auto = only scanned / poorly extracted pages; always | never
+  # Leave empty to use tesseract from PATH or the default Windows install path
+  # "C:/Program Files/Tesseract-OCR/tesseract.exe"
+  tesseract_cmd: ""
+  tessdata_dir: ""
+  languages: "eng"      # e.g. "eng+deu" (language packs must be installed locally)
+  dpi: 300
+  psm: 3
+  oem: 1
+  min_native_chars: 25
+  min_image_coverage: 0.25
+  min_vector_paths_for_ocr: 400
+  mixed_page_ocr: true
+  mixed_min_image_coverage: 0.35
+  native_quality_threshold: 0.45
+  page_low_confidence: 70.0
+  block_low_confidence: 60.0
+  retry_below_confidence: 75.0
+  detect_orientation: true
+  timeout_seconds: 120
+  preprocessing:
+    grayscale: true
+    denoise: median     # none | median | nlmeans
+    deskew: true
+    max_deskew_degrees: 10.0
+    binarize: otsu      # none | otsu | adaptive
+    clahe: false
+
+classification:
+  min_score: 2.0
+  ambiguity_margin: 0.5
+  weights:
+    section_heading: 4.0
+    ancestor_heading: 2.0
+    own_heading: 5.0
+    keyword: 1.0
+    keyword_cap: 4.0
+    pattern: 2.0
+    block_type: 3.0
+
+  # Equipment families and models. Model patterns are regular expressions.
+  equipment:
+    - name: "Hydraulic Press"
+      keywords: ["hydraulic press"]
+      models:
+        - name: "HP-200"
+          patterns: ['\bHP[-\s]?200\b']
+        - name: "HP-300"
+          patterns: ['\bHP[-\s]?300\b']
+
+  components:
+    - name: "Hydraulic pump"
+      keywords: ["hydraulic pump", "pump"]
+    - name: "Pump coupling"
+      keywords: ["pump coupling", "coupling"]
+    - name: "Hydraulic filter"
+      keywords: ["filter element", "hydraulic filter", "oil filter"]
+    - name: "Main cylinder"
+      keywords: ["main cylinder"]
+    - name: "Accumulator"
+      keywords: ["accumulator"]
+    - name: "Guide rails"
+      keywords: ["guide rail"]
+    - name: "Lubrication system"
+      keywords: ["lubrication", "grease"]
+
+  # Logical manual chapters (rendered in this order).
+  # heading_keywords: matched against the section heading hierarchy (strongest signal)
+  # keywords: matched in the statement text; patterns: regexes on the statement
+  # block_types: block types that indicate the chapter; block_type_mode:
+  #   fallback = only when no heading context matched, always = unconditional
+  chapters:
+    - id: scope
+      title: "Scope and Applicability"
+      heading_keywords: ["scope", "introduction", "applicability", "purpose", "about this manual", "overview", "general information"]
+      keywords: ["this manual", "this bulletin", "applies to", "intended for", "purpose of this"]
+    - id: safety
+      title: "Safety Instructions"
+      heading_keywords: ["safety", "safety instructions", "safety precautions", "hazards", "lockout", "personal protective equipment"]
+      keywords: ["lock out", "lockout", "tag out", "tagout", "personal protective", "PPE", "injury", "hazard", "safety glasses", "protective gloves"]
+      block_types: ["danger", "warning", "caution"]
+      block_type_mode: fallback
+    - id: specifications
+      title: "Technical Specifications"
+      heading_keywords: ["specifications", "technical data", "technical specifications", "rated data", "performance data", "dimensions"]
+      keywords: ["rated", "nominal", "maximum operating", "capacity", "motor power", "power supply", "weight"]
+    - id: components
+      title: "Components and System Description"
+      heading_keywords: ["components", "system description", "description", "design and function", "construction", "functional description"]
+      keywords: ["consists of", "is mounted", "is located", "comprises"]
+    - id: preventive_maintenance
+      title: "Preventive Maintenance"
+      heading_keywords: ["preventive maintenance", "preventative maintenance", "routine maintenance", "periodic maintenance", "lubrication", "servicing", "lubrication points"]
+      keywords: ["lubricate", "grease", "oil change", "replace the filter", "operating hours"]
+    - id: inspections
+      title: "Inspections and Checks"
+      heading_keywords: ["inspection", "inspections", "checks", "checklist", "visual check", "weekly inspections", "daily checks"]
+      keywords: ["inspect", "check for", "visually", "examine", "leaks", "cracks", "wear"]
+    - id: procedures
+      title: "Maintenance Procedures"
+      heading_keywords: ["procedure", "procedures", "maintenance procedures", "removal", "installation", "replacing", "replacement", "adjustment", "disassembly", "assembly", "instructions"]
+      keywords: ["remove", "install", "tighten", "loosen", "disconnect", "reconnect", "refit"]
+      patterns: ['^\s*(?:step\s*)?\d{1,2}[.)]\s+[A-Z]']
+    - id: troubleshooting
+      title: "Troubleshooting"
+      heading_keywords: ["troubleshooting", "fault finding", "faults", "diagnosis", "error codes", "malfunctions"]
+      keywords: ["cause", "remedy", "symptom", "fault", "possible cause", "corrective action", "too low", "too high", "noise"]
+    - id: repairs
+      title: "Repairs and Overhaul"
+      heading_keywords: ["repair", "repairs", "overhaul", "rebuild", "refurbishment"]
+      keywords: ["overhaul", "rebuild", "worn parts", "machining"]
+    - id: schedules
+      title: "Maintenance Schedules and Intervals"
+      heading_keywords: ["maintenance schedule", "service schedule", "maintenance intervals", "service intervals", "maintenance plan"]
+      keywords: ["daily", "weekly", "monthly", "annually", "yearly", "interval"]
+      patterns: ['\bevery\s+\d[\d,.]*\s*(?:operating\s+)?(?:hours|h|days|weeks|months|years)\b']
+    - id: parts
+      title: "Spare Parts"
+      heading_keywords: ["spare parts", "parts list", "replacement parts", "parts catalogue", "bill of materials"]
+      keywords: ["part no", "part number", "P/N", "order no", "qty"]
+      patterns: ['\b(?:P/N|PN|Part\s*No\.?)\s*[:#]?\s*[A-Z0-9][A-Z0-9\-.]{2,}']
+    - id: tools
+      title: "Tools and Consumables"
+      heading_keywords: ["tools", "special tools", "consumables", "equipment required", "materials required", "lubricants"]
+      keywords: ["torque wrench", "spanner", "screwdriver", "feeler gauge", "sealant", "thread locker"]
+    - id: diagrams
+      title: "Diagrams and Illustrations"
+      heading_keywords: ["diagram", "diagrams", "drawing", "drawings", "schematic", "illustrations", "hydraulic circuit", "wiring"]
+      patterns: ['^(?:fig(?:ure)?\.?|diagram|illustration|drawing)\s*\d+']
+      block_types: ["figure", "caption"]
+      block_type_mode: fallback
+    - id: revision_references
+      title: "Revision History and References"
+      heading_keywords: ["revision history", "revisions", "change record", "references", "related documents", "document history"]
+      keywords: ["initial release", "supersedes", "reference document", "change notice"]
+
+dedupe:
+  # Exact duplicates (identical normalised text) are merged only within the same
+  # context: section = same section heading + same applicability (safest).
+  exact_context: section
+  merge_across_models: false
+  never_merge_safety_within_source: true
+  # Near duplicates are ONLY review candidates, never merged automatically.
+  near_threshold: 90.0
+  near_min_chars: 25
+  near_max_candidates: 50000
+  near_chunk_size: 512
+
+units:
+  # auto: "0,5" -> decimal comma; "1,500" -> flagged ambiguous (1.5 or 1500)
+  decimal_separator: auto
+  context_window_chars: 80
+  # Relative tolerance when checking "45 Nm (33 ft-lb)" dual-unit statements
+  dual_unit_tolerance: 0.03
+  canonical_units:
+    torque: "N*m"
+    pressure: "bar"
+    temperature: "degC"
+    interval: "hour"
+    length: "mm"
+    volume: "L"
+    mass: "kg"
+    force: "N"
+    speed: "rpm"
+    flow: "L/min"
+    voltage: "V"
+    current: "A"
+    power: "kW"
+    frequency: "Hz"
+    viscosity: "mm**2/s"
+  # Words that identify the technical parameter of a nearby number
+  parameter_keywords:
+    torque: ["torque", "tighten", "tightening", "tightened", "drehmoment", "anziehen"]
+    pressure: ["pressure", "pre-charge", "precharge", "relief valve", "druck"]
+    temperature: ["temperature", "temp.", "hot", "cool", "heat", "temperatur"]
+    interval: ["every", "interval", "operating hours", "service life", "after the first"]
+    length: ["clearance", "gap", "play", "thickness", "diameter", "stroke", "length"]
+    volume: ["capacity", "volume", "fill quantity", "oil quantity"]
+    speed: ["speed", "rpm"]
+    power: ["motor power", "power rating"]
+
+conflicts:
+  subject_similarity: 85.0
+  relative_tolerance: 0.005
+  absolute_tolerance: 1.0e-9
+  procedure_heading_similarity: 90.0
+  procedure_step_similarity: 70.0
+  part_description_similarity: 88.0
+  severity:
+    torque: critical
+    pressure: critical
+    temperature: critical
+    safety: critical
+    interval: major
+    part_number: major
+    procedure: major
+    unit_inconsistency: major
+    applicability: major
+  default_severity: minor
+  # Open conflicts of these severities block approval of the involved statements
+  # and block generation of the approved manual.
+  blocking_severities: ["critical"]
+  stopwords: ["the", "a", "an", "of", "to", "and", "or", "for", "with", "on", "in", "at", "by", "from", "is", "are",
+              "be", "must", "shall", "should", "all", "any", "each", "this", "that", "check", "set", "tighten",
+              "torque", "value", "setting", "approx", "approximately", "not", "exceed", "max", "min", "maximum",
+              "minimum", "nominal", "operating", "every", "after", "before", "hours", "hour", "using", "use"]
+  synonyms:
+    temp: temperature
+    press: pressure
+    screws: bolts
+    screw: bolt
+    bolts: bolt
+
+review:
+  require_reviewer_name: true
+  require_comment_for_rejection: true
+  # OCR-derived statements can only be approved after the reviewer confirms
+  # the text against the rendered page image
+  require_ocr_confirmation: true
+  streamlit_port: 8501
+  streamlit_address: "127.0.0.1"
+
+generation:
+  modes: ["draft", "approved"]
+  block_approved_on_open_critical_conflicts: true
+  include_unclassified_in_draft: true
+  include_figures: true
+  figure_max_width_cm: 15.0
+  # Unicode TrueType fonts for the PDF manual (first existing file is used)
+  pdf_font_paths:
+    - "C:/Windows/Fonts/arial.ttf"
+    - "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+    - "/Library/Fonts/Arial Unicode.ttf"
+  full_sha_in_index: true
+  file_stem: "Master_Manual"
+
+verify:
+  rehash_sources: true
+  recheck_evidence_text: approved   # approved | all | none
+  expected_chapters: ["scope", "safety", "specifications", "preventive_maintenance", "procedures",
+                      "troubleshooting", "parts"]
+  pdfplumber_page_count: true
+
+export:
+  max_cell_chars: 32000
+  copy_database_to_output: true
+
+logging:
+  level: INFO
+  file_name: maintdoc.log
+  max_bytes: 10000000
+  backup_count: 5

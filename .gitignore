@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+# runtime folders (never commit processed data)
+work/
+output/
+logs/
+sources/
+sample_sources/
+*.db
+*.db-wal
+*.db-shm
