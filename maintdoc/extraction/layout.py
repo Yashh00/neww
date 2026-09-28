@@ -115,7 +115,8 @@ class LayoutAnalyzer:
             for w in ws:
                 words.append((w, level))
         self.signal_map = {w.upper(): lvl for w, lvl in words}
-        alt = "|".join(re.escape(w) for w, _ in sorted(words, key=lambda x: -len(x[0])))
+        # no configured signal words -> a pattern that can never match
+        alt = "|".join(re.escape(w) for w, _ in sorted(words, key=lambda x: -len(x[0]))) or r"(?!x)x"
         # uppercase signal word, or any-case signal word followed by a colon
         self.signal_re = re.compile(rf"^\s*(?:(?P<up>{alt})\b|(?i:(?P<any>{alt}))\s*:)\s*[:!\-–—]?\s*")
 

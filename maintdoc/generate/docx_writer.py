@@ -6,11 +6,11 @@ import logging
 from pathlib import Path
 
 from docx import Document
-from docx.enum.section import WD_ORIENT  # noqa: F401 - kept for users customising layout
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Cm, Pt, RGBColor
+from docx.table import _Cell
 
 from maintdoc.constants import TOOL_VERSION
 from maintdoc.generate.manual import Item, Manual
@@ -61,15 +61,21 @@ def _cite_run(p, item: Item) -> None:
 
 
 def _table(doc, rows: list[list], header: bool = True, size: float = 8.0):
+    """Build the table row by row at XML level.
+
+    python-docx's ``table.cell(i, j)`` recomputes the whole cell grid on every call, which is
+    quadratic for large tables (e.g. a citation index with thousands of rows).
+    """
     ncols = max((len(r) for r in rows), default=1)
-    t = doc.add_table(rows=len(rows), cols=ncols)
+    t = doc.add_table(rows=0, cols=ncols)
     t.style = "Table Grid"
     for i, r in enumerate(rows):
+        tr = t._tbl.add_tr()
         for j in range(ncols):
             val = r[j] if j < len(r) else ""
-            cell = t.cell(i, j)
-            cell.text = ""
-            run = cell.paragraphs[0].add_run(_clean("" if val is None else str(val)))
+            cell = _Cell(tr.add_tc(), t)
+            para = cell.paragraphs[0] if cell.paragraphs else cell.add_paragraph()
+            run = para.add_run(_clean("" if val is None else str(val)))
             run.font.size = Pt(size)
             if header and i == 0:
                 run.bold = True

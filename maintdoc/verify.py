@@ -16,7 +16,6 @@ import sqlite3
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
 
 import pymupdf
 
@@ -224,6 +223,13 @@ def check_approvals(conn: sqlite3.Connection, cfg: Config, rep: VerifyReport) ->
 
 
 # --------------------------------------------------------------------------- generated manuals
+def _body_text(page: pymupdf.Page) -> str:
+    """Page text without the running header/footer, so statements that continue across a page
+    break are contiguous in the extracted text (header/footer lie outside the body frame)."""
+    margin = 15 * 72 / 25.4  # 15 mm; the body frame starts 22 mm from the top and ends 20 mm above the bottom
+    return page.get_text("text", clip=pymupdf.Rect(0, margin, page.rect.width, page.rect.height - margin))
+
+
 def _docx_text(path: Path) -> str:
     from docx import Document
     d = Document(str(path))
@@ -261,7 +267,7 @@ def check_outputs(conn: sqlite3.Connection, cfg: Config, rep: VerifyReport) -> N
                 if kind == "pdf":
                     with pymupdf.open(str(p)) as d:
                         n = d.page_count
-                        texts[kind] = "\n".join(pg.get_text("text") for pg in d)
+                        texts[kind] = "\n".join(_body_text(pg) for pg in d)
                     rep.add("generation", "pdf_readable", mode, PASS if n > 0 else FAIL, f"{n} pages")
                 else:
                     texts[kind] = _docx_text(p)
@@ -276,6 +282,8 @@ def check_outputs(conn: sqlite3.Connection, cfg: Config, rep: VerifyReport) -> N
                                                 "display_text FROM evidence")}
         cur_sha = {r[0]: r[1] for r in conn.execute("SELECT source_id, sha256 FROM sources")}
         uncited = bad_cite = text_missing = num_mismatch = 0
+        squashed = {k: squash(v) for k, v in texts.items()}          # computed once per output file
+        output_numbers = {k: numeric_tokens(v) for k, v in texts.items()}
         for it in items:
             if not it.get("citations"):
                 uncited += 1
@@ -293,7 +301,7 @@ def check_outputs(conn: sqlite3.Connection, cfg: Config, rep: VerifyReport) -> N
                     rep.add("generation", "manifest_matches_evidence", f"{mode}:{it['item_id']}", FAIL,
                             "rendered text differs from approved/original evidence text")
             for kind, full in texts.items():
-                sq = squash(full)
+                sq = squashed[kind]
                 needles = [it["citation_text"]]
                 if it["kind"] == "table" and it.get("table_rows"):
                     needles += [c for row_ in it["table_rows"] for c in row_ if c]
@@ -304,7 +312,7 @@ def check_outputs(conn: sqlite3.Connection, cfg: Config, rep: VerifyReport) -> N
                     text_missing += 1
                     rep.add("generation", f"{kind}_content_present", f"{mode}:{it['item_id']}", FAIL,
                             f"not found in {kind}: {missing[0][:80]!r}")
-                elif Counter(it["numbers"]) - numeric_tokens(full):
+                elif Counter(it["numbers"]) - output_numbers[kind]:
                     num_mismatch += 1
                     rep.add("generation", f"{kind}_numeric_identity", f"{mode}:{it['item_id']}", FAIL,
                             "numbers of the item not all present in output")

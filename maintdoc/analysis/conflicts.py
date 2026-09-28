@@ -33,7 +33,7 @@ from maintdoc import audit
 from maintdoc.analysis.classify import applicability_compatible, split_multi
 from maintdoc.analysis.dedupe import topic_key
 from maintdoc.config import Config
-from maintdoc.constants import BlockType, ConflictStatus, EvidenceStatus
+from maintdoc.constants import BlockType, ConflictStatus
 from maintdoc.db import rows, transaction
 from maintdoc.utils import dumps, loads, normalize_text, now_iso, sha256_text
 

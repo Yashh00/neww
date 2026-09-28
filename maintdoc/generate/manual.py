@@ -171,8 +171,6 @@ def build_manual(conn: sqlite3.Connection, cfg: Config, mode: str, run_id: str =
     by_id = {e["evidence_id"]: e for e in all_ev}
     captions = {e["evidence_id"]: e for e in rows(conn, "SELECT * FROM evidence WHERE status='active' AND "
                                                         "block_type='caption'")}
-    headings = {e["evidence_id"]: e for e in rows(conn, "SELECT evidence_id, text, source_id, page_no FROM evidence "
-                                                        "WHERE block_type='heading'")}
     members: dict[str, list[dict]] = defaultdict(list)
     for e in all_ev:
         if e["canonical_evidence_id"]:

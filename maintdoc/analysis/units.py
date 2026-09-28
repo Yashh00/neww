@@ -131,7 +131,8 @@ QTY_RE = re.compile(
     rf"(?:\s*(?:±|\+/-|\+-)\s*(?P<tol2>{_NUM})\s*(?:{_UNIT_ALT})?(?![A-Za-z0-9]))?",
 )
 _DATE_RE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}[./]\d{1,2}[./]\d{2,4}\b|\b\d{1,2}:\d{2}(?::\d{2})?\b")
-_LIST_MARK = re.compile(r"^\s*(?:step\s*)?\(?(\d{1,3}(?:\.\d{1,3})*)[.)]?\s")
+# step/list numbers at the start of a statement: "4. Tighten", "(2) Remove", "Step 3 Fit"
+_LIST_MARK = re.compile(r"^\s*(?:\(?(\d{1,3}(?:\.\d{1,3})*)[.)]|(?i:step)\s*(\d{1,3})\b[:.)]?)\s")
 _REF_BEFORE = re.compile(r"(?i)(?:table|tab|figure|fig|page|p|step|rev|revision|item|no|nr|section|chapter|"
                          r"sheet|drawing|pos|position|issue|version|ver|qty|quantity|x|size|class|grade|iso|din|"
                          r"en|sae|api|nlgi|vg|ep|type|model|series|part|p/n|pn|art|order)\.?\s*[:#]?\s*$")
@@ -312,10 +313,9 @@ class UnitExtractor:
         list_mark = _LIST_MARK.match(masked)
         prev_end = 0
         for m in QTY_RE.finditer(masked):
-            num1 = m.group("num1")
             start = m.start("num1") - (1 if m.group("sign") else 0)
             unit = m.group("unit")
-            if list_mark and m.start("num1") == list_mark.start(1):
+            if list_mark and m.start("num1") in (list_mark.start(1), list_mark.start(2)):
                 continue  # step / list number
             before = masked[max(0, start - 20):start]
             if _REF_BEFORE.search(before) and not unit:

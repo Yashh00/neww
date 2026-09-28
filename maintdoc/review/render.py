@@ -2,11 +2,23 @@
 
 from __future__ import annotations
 
+from functools import lru_cache
 from pathlib import Path
 
 import pymupdf
 
 from maintdoc.utils import sha256_file
+
+
+@lru_cache(maxsize=256)
+def _cached_sha(path: str, size: int, mtime_ns: int) -> str:
+    return sha256_file(path)
+
+
+def current_sha256(path: Path) -> str:
+    """SHA-256 of a file, cached per (path, size, mtime) so page renders stay fast in the review app."""
+    st = path.stat()
+    return _cached_sha(str(path), st.st_size, st.st_mtime_ns)
 
 
 class SourceChanged(RuntimeError):
@@ -17,7 +29,7 @@ def render_page(path: str | Path, page_no: int, bbox: tuple | None = None, zoom:
                 expected_sha256: str | None = None, clip: tuple | None = None) -> bytes:
     """PNG bytes of a page; raises SourceChanged if the file no longer matches the evidence hash."""
     path = Path(path)
-    if expected_sha256 and sha256_file(path) != expected_sha256:
+    if expected_sha256 and current_sha256(path) != expected_sha256:
         raise SourceChanged(f"{path.name} changed since extraction - evidence cannot be shown against it")
     with pymupdf.open(str(path)) as doc:
         page = doc.load_page(page_no - 1)

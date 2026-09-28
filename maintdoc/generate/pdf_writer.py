@@ -10,8 +10,8 @@ from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm, mm
-from reportlab.platypus import (BaseDocTemplate, Frame, Image, KeepTogether, PageBreak, PageTemplate, Paragraph,
-                                Spacer, Table, TableStyle)
+from reportlab.platypus import (BaseDocTemplate, Frame, Image, PageBreak, PageTemplate, Paragraph, Spacer, Table,
+                                TableStyle)
 from reportlab.platypus.tableofcontents import TableOfContents
 
 from maintdoc.constants import TOOL_VERSION
@@ -105,39 +105,54 @@ def _flags_markup(item: Item) -> str:
     return f' <font size="7" color="#b00020">{{{esc("; ".join(notes))}}}</font>'
 
 
-def _table(rows: list[list], widths: list[float], st: dict, header: bool = True, font_small: bool = False) -> Table:
+TABLE_CHUNK_ROWS = 150
+
+
+def _table(rows: list[list], widths: list[float], st: dict, header: bool = True, font_small: bool = False) -> list:
+    """Table flowables. Long tables are split into chunks (header repeated) because splitting a
+    single huge ReportLab table across pages is quadratic."""
     cell = st["Small"] if font_small else st["Cell"]
-    data = []
-    for r_i, r in enumerate(rows):
-        data.append([Paragraph(esc("" if c is None else str(c)), st["CellB"] if header and r_i == 0 else cell)
-                     for c in r])
-    t = Table(data, colWidths=widths, repeatRows=1 if header else 0)
-    t.setStyle(TableStyle([
+    style = TableStyle([
         ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#888888")),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e8e8e8") if header else colors.white),
         ("LEFTPADDING", (0, 0), (-1, -1), 3), ("RIGHTPADDING", (0, 0), (-1, -1), 3),
-    ]))
-    return t
+    ])
+
+    def para(c, bold: bool) -> Paragraph:
+        return Paragraph(esc("" if c is None else str(c)), st["CellB"] if bold else cell)
+
+    head = [para(c, True) for c in rows[0]] if header and rows else None
+    body = rows[1:] if head is not None else rows
+    out = []
+    for i in range(0, max(1, len(body)), TABLE_CHUNK_ROWS):
+        chunk = [[para(c, False) for c in r] for r in body[i:i + TABLE_CHUNK_ROWS]]
+        data = ([head] if head is not None else []) + chunk
+        if not data:
+            continue
+        t = Table(data, colWidths=widths, repeatRows=1 if head is not None else 0, splitInRow=1)
+        t.setStyle(style)
+        out.append(t)
+    return out
 
 
 def _item_flowables(item: Item, st: dict, width: float, cfg) -> list:
     out: list = []
     if item.kind == "admonition":
+        # a styled paragraph (not a one-cell table) so very long citation lists can split across pages
         color = ADMONITION_COLORS.get(item.safety_level or item.block_type, "#eeeeee")
-        p = Paragraph(esc(item.text) + _cite_markup(item) + _flags_markup(item), st["Body"])
-        t = Table([[p]], colWidths=[width])
-        t.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), colors.HexColor(color)),
-                               ("BOX", (0, 0), (-1, -1), 1.0, colors.HexColor("#b00020")
-                                if item.block_type in ("danger", "warning") else colors.HexColor("#888888")),
-                               ("LEFTPADDING", (0, 0), (-1, -1), 5), ("RIGHTPADDING", (0, 0), (-1, -1), 5)]))
-        out.append(KeepTogether([t, Spacer(1, 4)]))
+        strong = item.block_type in ("danger", "warning")
+        style = ParagraphStyle(f"Adm_{item.block_type}", parent=st["Body"], backColor=colors.HexColor(color),
+                               borderColor=colors.HexColor("#b00020" if strong else "#888888"),
+                               borderWidth=1.0 if strong else 0.6, borderPadding=5, spaceBefore=6, spaceAfter=8,
+                               leftIndent=5, rightIndent=5)
+        out.append(Paragraph(esc(item.text) + _cite_markup(item) + _flags_markup(item), style))
     elif item.kind == "table" and item.table_rows:
         ncols = max(len(r) for r in item.table_rows) or 1
         rows = [list(r) + [None] * (ncols - len(r)) for r in item.table_rows]
         if item.caption:
             out.append(Paragraph(esc(item.caption), st["H3"]))
-        out.append(_table(rows, [width / ncols] * ncols, st))
+        out.extend(_table(rows, [width / ncols] * ncols, st))
         out.append(Paragraph(esc(item.citation_text()) + _flags_markup(item), st["Cite"]))
         out.append(Spacer(1, 5))
     elif item.kind == "figure":
@@ -181,7 +196,7 @@ def write_pdf(manual: Manual, path: Path, cfg) -> Path:
                         f"- configuration {esc(manual.config_hash)}", st["Body"]),
               Spacer(1, 0.6 * cm), Paragraph(esc(manual.disclaimer), st["Disc"]), Spacer(1, 0.6 * cm)]
     stats_rows = [["Measure", "Value"]] + [[k.replace("_", " "), str(v)] for k, v in manual.stats.items()]
-    story += [_table(stats_rows, [width * 0.6, width * 0.4], st), PageBreak()]
+    story += [*_table(stats_rows, [width * 0.6, width * 0.4], st), PageBreak()]
     toc = TableOfContents()
     toc.levelStyles = [ParagraphStyle("T1", fontName=bold, fontSize=10, leading=13, leftIndent=0),
                        ParagraphStyle("T2", fontName=font, fontSize=8.5, leading=10.5, leftIndent=14)]
@@ -216,7 +231,7 @@ def write_pdf(manual: Manual, path: Path, cfg) -> Path:
             story.append(Paragraph(esc(gt["title"]), st["H3"]))
             cols = gt["columns"]
             rows = [cols] + [[r.get(c, "") for c in cols] for r in gt["rows"]]
-            story.append(_table(rows, [width / len(cols)] * len(cols), st, font_small=True))
+            story.extend(_table(rows, [width / len(cols)] * len(cols), st, font_small=True))
     # appendices
     story.append(PageBreak())
     story.append(Paragraph("Appendix A - Conflicts" + (" (open - no value has been chosen automatically)"
@@ -227,13 +242,13 @@ def write_pdf(manual: Manual, path: Path, cfg) -> Path:
         for c in manual.conflicts:
             rows.append([c["conflict_id"], f"{c['conflict_type']} / {c['severity']}", c["status"], c["description"],
                          f"{c.get('resolution_type') or ''} {c.get('resolution') or ''} {c.get('resolved_by') or ''}"])
-        story.append(_table(rows, [width * x for x in (0.13, 0.14, 0.1, 0.43, 0.2)], st, font_small=True))
+        story.extend(_table(rows, [width * x for x in (0.13, 0.14, 0.1, 0.43, 0.2)], st, font_small=True))
     else:
         story.append(Paragraph("None.", st["Body"]))
     story.append(Paragraph("Appendix B - Withheld items", st["H1"]))
     if manual.withheld:
         rows = [["Evidence", "Reason"]] + [[w["evidence_id"], w["reason"]] for w in manual.withheld]
-        story.append(_table(rows, [width * 0.3, width * 0.7], st, font_small=True))
+        story.extend(_table(rows, [width * 0.3, width * 0.7], st, font_small=True))
     else:
         story.append(Paragraph("None.", st["Body"]))
     story.append(Paragraph("Appendix C - Citation index", st["H1"]))
@@ -243,7 +258,7 @@ def write_pdf(manual: Manual, path: Path, cfg) -> Path:
         rows.append([eid, f"{c.source_id} {c.filename}" + (f" Rev {c.revision}" if c.revision else ""), str(c.page_no),
                      (c.section or "")[:120], f"{c.method}" + (f" {c.ocr_confidence}%" if c.ocr_confidence else ""),
                      c.review_status, c.sha256 if cfg.get("generation.full_sha_in_index", True) else c.sha256[:16]])
-    story.append(_table(rows, [width * x for x in (0.2, 0.2, 0.05, 0.17, 0.1, 0.08, 0.2)], st, font_small=True))
+    story.extend(_table(rows, [width * x for x in (0.2, 0.2, 0.05, 0.17, 0.1, 0.08, 0.2)], st, font_small=True))
     doc.multiBuild(story)
     tmp.replace(path)
     return path

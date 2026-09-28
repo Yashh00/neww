@@ -24,7 +24,7 @@ from maintdoc.analysis.dedupe import run_exact_dedupe, run_near_dedupe
 from maintdoc.analysis.units import UnitExtractor
 from maintdoc.approval import fingerprint
 from maintdoc.config import Config
-from maintdoc.constants import UNCLASSIFIED_CHAPTER, BlockType, EvidenceStatus, ReviewStatus, SourceStatus
+from maintdoc.constants import BlockType, EvidenceStatus, ReviewStatus, SourceStatus
 from maintdoc.db import rows, transaction
 from maintdoc.errors import auto_resolve, error_fingerprint, record_error
 from maintdoc.invalidation import invalidate_evidence_approvals

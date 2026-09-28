@@ -76,6 +76,10 @@ def generate_mode(conn: sqlite3.Connection, cfg: Config, mode: str, run_id: str,
             _register(conn, f"manual_{kind}", mode, paths[kind] if kind in written else None, status,
                       None if kind in written else "; ".join(errors), run_id, manual.stats["items"])
         _register(conn, "manifest", mode, paths["manifest"], "generated", None, run_id, manual.stats["items"])
+        # errors of earlier attempts for this mode are resolved once regeneration no longer produces them
+        conn.execute("UPDATE extraction_errors SET status='resolved', status_by='system', status_at=?, "
+                     "status_comment='not reproduced by regeneration' WHERE stage='generation' AND status='open' "
+                     "AND error_code='GENERATION_ERROR' AND message LIKE ?", (now_iso(), f"{mode} manual:%"))
         for e in errors:
             record_error(conn, "GENERATION_ERROR", f"{mode} manual: {e}", stage="generation", run_id=run_id,
                          key=f"{mode}|{e[:80]}")
