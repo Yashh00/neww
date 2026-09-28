@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "maintdoc"
+version = "1.0.0"
+description = "Local, rule-based processing of industrial maintenance PDFs into evidence-cited draft master manuals"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "PyMuPDF>=1.24.0", "pdfplumber>=0.11.0", "pytesseract>=0.3.10", "opencv-python-headless>=4.8.0",
+    "numpy>=1.26", "Pillow>=10.0", "rapidfuzz>=3.5.0", "Pint>=0.23", "openpyxl>=3.1.2", "python-docx>=1.1.0",
+    "reportlab>=4.0", "streamlit>=1.35", "pandas>=2.0", "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8.0"]
+
+[project.scripts]
+maintdoc = "maintdoc.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["maintdoc*"]
+
+[tool.setuptools.package-data]
+maintdoc = ["schema.sql"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+filterwarnings = ["ignore::DeprecationWarning"]

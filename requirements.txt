@@ -1,0 +1,17 @@
+# maintdoc runtime + test dependencies (Python 3.11+).
+# Internet is only needed once to install these (or use an offline wheelhouse, see README).
+PyMuPDF>=1.24.0
+pdfplumber>=0.11.0
+pytesseract>=0.3.10
+opencv-python-headless>=4.8.0
+numpy>=1.26
+Pillow>=10.0
+rapidfuzz>=3.5.0
+Pint>=0.23
+openpyxl>=3.1.2
+python-docx>=1.1.0
+reportlab>=4.0
+streamlit>=1.35
+pandas>=2.0
+PyYAML>=6.0
+pytest>=8.0
