@@ -86,6 +86,7 @@ class BlockType:
     FIGURE = "figure"
     HEADER_FOOTER = "header_footer"
     TABLE_TEXT = "table_text"   # native text that lies inside an extracted table
+    FIGURE_TEXT = "figure_text"  # labels inside a figure region (kept, rendered with the figure)
 
     SAFETY = (DANGER, WARNING, CAUTION, NOTICE)
     ADMONITIONS = (DANGER, WARNING, CAUTION, NOTICE, NOTE)

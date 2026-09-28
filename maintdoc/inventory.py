@@ -39,6 +39,8 @@ log = logging.getLogger(__name__)
 
 pymupdf.TOOLS.mupdf_display_errors(False)
 pymupdf.TOOLS.mupdf_display_warnings(False)
+if hasattr(pymupdf, "no_recommend_layout"):
+    pymupdf.no_recommend_layout()
 
 
 @dataclass
