@@ -257,6 +257,7 @@ def cmd_review(args) -> int:
     port = str(args.port or cfg.get("review.streamlit_port", 8501))
     cmd = [sys.executable, "-m", "streamlit", "run", str(app), "--server.address", address, "--server.port", port,
            "--server.headless", "true" if args.no_browser else "false", "--browser.gatherUsageStats", "false",
+           "--client.toolbarMode", "minimal",  # no "Deploy" (cloud publishing) button in an offline tool
            "--", "--config", cfg_path]
     env = dict(os.environ, MAINTDOC_CONFIG=cfg_path)
     print(f"Starting local review server on http://{address}:{port}  (Ctrl+C to stop)")

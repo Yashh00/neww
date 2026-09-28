@@ -6,3 +6,6 @@ gatherUsageStats = false
 address = "127.0.0.1"
 headless = true
 
+[client]
+# hide the "Deploy" button (cloud publishing) - this tool is local only
+toolbarMode = "minimal"
